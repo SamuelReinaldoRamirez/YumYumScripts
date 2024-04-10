@@ -1,14 +1,12 @@
-#on va target xanos et recup 10ids pars 10 ids les données de placeID des restos. Si dans le batch il manque des données, on regarde si il y a bien 10 resto qui ont été questionnés.
-#si oui, alors on lance la requet pour récupérer les placeId à partir e nom et localisation.
-# du coup on se retrouve avec 10 placeIds par 10 placeIds.
-
-#en fait on va faire un script get placeId qu'on execute sur les ids de restos en questions quand les placesIds ne sont pas remplies#
-#on parcours les placeidS avec les ids de resto correspondant et on requete places pour avoir les données de details
-
-#puis on fait un post dans xano pour peupler la bdd
+# faire passer chaque resto qui merde 1 par 1 pour trouver une strat ; peut etre en ayant recours à d'autres endpoint donc :'
+# mieux étudier l'api maps
+# script pour update toutes les colones schedules histoire d'avoir des intervalles plus propres
 
 # https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants?_limit={batch_size}&_start={start_index}
 # https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants?_limit=10&_start=0
+
+#dev :
+# https://x8ki-letl-twmt.n7.xano.io/api:_q8oxfAF/restaurants
 import ast
 from urllib.parse import quote
 
@@ -18,9 +16,13 @@ import csv
 import json
 import datetime
 
-
+dev = True
+prod = False
+xanoKeyDev = '_q8oxfAF'
 xanoKey = 'LYxWamUX'
 YOUR_GOOGLE_MAPS_API_KEY = 'AIzaSyBM05T0u8LoAKr2MtbTIjXtFmrU-06ye6U'
+templateBDDReviews = {'author': 'Monica Rivera', 'text': 'Everything was delicious! Ramen was amazing with lots of flavors. The veggie gyozas as appetizers were tasty too. Nice variety of desserts and I really recommend the matcha financiers with ginger ice cream. Nice wine by the glass as well. Very cozy venue and ambience. A must!', 'rating': '5', 'date_published': 1675549566000, 'author_profile_url': 'https://www.google.com/maps/contrib/107074390665313624214/reviews', 'lang': 'en'}
+templateBDDResto = {'id': 127, 'created_at': 1712447719120, 'placeId': 'ChIJt9VeXGRv5kcRA7kQ-xGju00', 'ratings': 3.1, 'name': 'Bambini', 'cuisine_id': 16, 'address_str': '13 Av. du Président Wilson, 75116 Paris', 'published': True, 'video_links': ['https://res.cloudinary.com/di65pb1aa/video/upload/v1710869614/edkqdkpapaabv3zsowpr.mp4', 'https://res.cloudinary.com/di65pb1aa/video/upload/v1710869627/lwgau3bufxnnzcbgxnei.mp4', 'https://res.cloudinary.com/di65pb1aa/video/upload/v1710869644/vpclikcbmkumwjbim1mq.mp4'], 'phone_number': '01 40 70 86 08', 'tags_id': [6, 5], 'price': '', 'website_url': 'https://bambini-restaurant.com/?utm_source=Yext&utm_medium=GMB&y_source=1_MjU3NjI3ODctNzE1LWxvY2F0aW9uLndlYnNpdGU%3D', 'handicap': True, 'vege': False, 'schedule': ['Monday: 12:00\u2009–\u20093:00\u202fPM, 7:00\u2009–\u200911:00\u202fPM', 'Tuesday: 12:00\u2009–\u20093:00\u202fPM, 7:00\u2009–\u200911:00\u202fPM', 'Wednesday: 12:00\u2009–\u20093:00\u202fPM, 7:00\u2009–\u200911:00\u202fPM', 'Thursday: 12:00\u2009–\u20093:00\u202fPM, 7:00\u2009–\u200911:00\u202fPM', 'Friday: 12:00\u2009–\u20093:00\u202fPM, 7:00\u2009–\u200911:00\u202fPM', 'Saturday: 12:00\u2009–\u20093:00\u202fPM, 7:00\u2009–\u200911:00\u202fPM', 'Sunday: 12:00\u2009–\u20093:00\u202fPM, 7:00\u2009–\u200911:00\u202fPM'], 'picture_profile': 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=ATplDJb2fDU4cHtEOuJ_ZZ8mF-k5xnJJXnE4M3w3ZLLgPKR5xjnd71DKrngQC7O68pgNj5Z3Xa_NH9kGRdsHMUEOLdOjo0cEu5IntAQ7rbApQ39pCn2bOewMoyFYy7VNP8ov2gXiNKGbESi_A32A_z3Ifgm6UzFrwGl3pIsR4w6FfWhoZ1M&key=AIzaSyBM05T0u8LoAKr2MtbTIjXtFmrU-06ye6U', 'number_of_reviews': 1839, 'GPS_address': {'type': 'point', 'data': {'lng': 2.288553, 'lat': 48.863029}}, 'reviews': [{'author': 'Mariana Petriyenko', 'text': 'Had an amazing experience here. I don’t get why there any bad reviews. The food was actually AMAZING, so fresh and so good & we tried a variety of different dishes.The vibes were 10/10, service was 10/10 and the live music was beautiful. The only thing is that you can’t see the Eiffel Tower from most of the tables, only a few in a small corner offer those views for dinner. But that didn’t take away from our experience at all. We’ll definitely be back here, loved it!', 'rating': '5', 'date_published': 1708731927000, 'author_profile_url': 'https://www.google.com/maps/contrib/117735846416187591998/reviews', 'lang': 'en'}, {'author': 'Catalina', 'text': 'The hype is real! Fantastic ambience and service. Live music and great food! The restaurant is beautiful, they have nice servers and talented artists performing. We had also a nice Eiffel Tower view. I enjoyed this place a lot. I’m picky with my Italian food, specially with tiramisù (I’d suggest to share it, it’s a huge portion for a single person). I will definitely come back!', 'rating': '5', 'date_published': 1709928721000, 'author_profile_url': 'https://www.google.com/maps/contrib/109433353881580968763/reviews', 'lang': 'en'}, {'author': 'Fearn Short', 'text': 'Last minute reservation made after seeing this restaurant recommend on tiktok. The pizza was big and filling, the decor and room was nice but was very pricey. Little attentions to detail such as the branded ice cube was nice. Seems to be an influencers heaven with girls taking photos with large LED lights throughout the whole night.', 'rating': '3', 'date_published': 1708543276000, 'author_profile_url': 'https://www.google.com/maps/contrib/110616714457220341512/reviews', 'lang': 'en'}, {'author': 'Misha K.', 'text': "I had higher expectations from this restaurant. The service was unfriendly; the waitress kept mentioning how expensive it was, which I found inappropriate. A server shouldn't judge patrons based on perceived affordability; politeness should be universal. It felt like she'd only be kind if she thought you'd leave a big tip. Additionally, the food wasn't tasty.", 'rating': '1', 'date_published': 1711633622000, 'author_profile_url': 'https://www.google.com/maps/contrib/118067884813947705471/reviews', 'lang': 'en'}, {'author': 'Maria emilia Alonzo', 'text': 'Very nice place, views and service. The best apperol spritz in paris by far and the green bean salad is a must. The food is pretty good but a bit overpriced in my opinion. Would definitely recommend for a one time ocasion.', 'rating': '5', 'date_published': 1702731182000, 'author_profile_url': 'https://www.google.com/maps/contrib/108632796295708644587/reviews', 'lang': 'en'}]}
 
 def print_red(text):
     print("\033[0;31m{}\033[0m".format(text))
@@ -54,7 +56,11 @@ def print_inverse_yellow(text):
 
 
 def get_all_restaurants():
-    url = f"https://x8ki-letl-twmt.n7.xano.io/api:{xanoKey}/restaurantsBDD"
+    url=''
+    if(dev):
+        url = f"https://x8ki-letl-twmt.n7.xano.io/api:{xanoKeyDev}/restaurants"
+    else: #if prod
+        url = f"https://x8ki-letl-twmt.n7.xano.io/api:{xanoKey}/restaurantsBDD"
     headers = {
         'Content-Type': 'application/json',
     }
@@ -68,6 +74,10 @@ def get_all_restaurants():
 
 #EXPORT
 def exportRestos(nameAppend=""):
+    if dev:
+        nameAppend = " - DEV"
+    else:
+        nameAppend = " - PROD"
     restos = get_all_restaurants()
     # Obtenir la date et l'heure actuelles
     maintenant = datetime.datetime.now()
@@ -90,14 +100,23 @@ def exportRestos(nameAppend=""):
 def getPlaceIdRequestDetails(resto):
     return [resto["name"], resto["GPS_address"]["data"]["lat"], resto["GPS_address"]["data"]["lng"]]
 
-def fetch_place_id(restaurant_name, latitude, longitude):
+def fetch_place_id(restaurant_name, latitude, longitude, radius=100):
+    print_red(radius)
+    # encoded_name = quote(restaurant_name.replace(' ', ''))
     encoded_name = quote(restaurant_name)
-    url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query={encoded_name}&location={latitude},{longitude}&radius=500&key={YOUR_GOOGLE_MAPS_API_KEY}"  # Remplacez YOUR_GOOGLE_MAPS_API_KEY par votre clé API Google Maps
+    url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query={encoded_name}&location={latitude},{longitude}&radius={radius}&key={YOUR_GOOGLE_MAPS_API_KEY}"  # Remplacez YOUR_GOOGLE_MAPS_API_KEY par votre clé API Google Maps
+    print_red(url)
     response = requests.get(url)
     data = response.json()
     if data.get('results'):
         placeidsQuiMatchLeNom = len(data["results"])
-        print_gray(f"{placeidsQuiMatchLeNom} placeId retournés au lieu de 1")
+        print_magenta(f"{placeidsQuiMatchLeNom} placeId retournés au lieu de 1")
+        if(placeidsQuiMatchLeNom >1 ):
+            print_magenta("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+            # return fetch_place_id(restaurant_name.replace(' ', ''), latitude, longitude, radius//2)
+            for dato in data["results"]:
+                print(f"https://maps.googleapis.com/maps/api/place/details/json?place_id=" + dato["place_id"] + f"&fields=name,types,current_opening_hours&key={YOUR_GOOGLE_MAPS_API_KEY}")
+        # return data['results'][0]['place_id']
         return data['results'][0]['place_id']
     print_gray(f"0 placeId retournés au lieu de 1")
     return None
@@ -111,7 +130,10 @@ def createDataPatchPlaceId(resto, place_id):
 
 def update_place_id_for_resto(resto, place_id):
     id = resto["id"]
-    url = f"https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants/{id}"  # Remplacez cette URL par la vôtre
+    if(dev):
+        url = f"https://x8ki-letl-twmt.n7.xano.io/api:{xanoKeyDev}/restaurants/{id}"
+    else: #if prod
+        url = f"https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants/{id}"  # Remplacez cette URL par la vôtre
     headers = {
         'Content-Type': 'application/json',
     }
@@ -129,31 +151,37 @@ def update_place_id_for_resto(resto, place_id):
 
 #PATCH RESTAURANTS DETAILS
 def fetch_restaurant_details(place_id):
-    url = f"https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}&key={YOUR_GOOGLE_MAPS_API_KEY}"  # Remplacez YOUR_GOOGLE_MAPS_API_KEY par votre clé API Google Maps
-    print_magenta(""+url)
-    response = requests.get(url)
-    data = response.json()
-    result = data.get('result', {})
-    if 'current_opening_hours' in result:
-        schedule = result["current_opening_hours"].get('weekday_text', [])
-    else:
-        print_underline_green("l'url " + url + " ne connait pas de current_opening_hours")
-        schedule = []
+    try:
+        url = f"https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}&key={YOUR_GOOGLE_MAPS_API_KEY}"  # Remplacez YOUR_GOOGLE_MAPS_API_KEY par votre clé API Google Maps
+        print_magenta(""+url)
+        response = requests.get(url)
+        data = response.json()
+        result = data.get('result', {})
+        if 'current_opening_hours' in result:
+            schedule = result["current_opening_hours"].get('weekday_text', [])
+        else:
+            print_underline_green("l'url " + url + " ne connait pas de current_opening_hours")
+            schedule = []
 
-    result_utile = {
-        "ratings": result.get('rating', None),
-        "price": result.get('price_level', None),
-        "website_url": result.get('website', ''),
-        "handicap": result.get('wheelchair_accessible_entrance', False),
-        "vege": result.get('serves_vegetarian_food', False),
-        "schedule": schedule,
-        "picture_profile": result["photos"][0].get('photo_reference', ''),
-        "number_of_reviews": result.get("user_ratings_total", None),
-        "reviews": result.get('reviews', [])
-    }
-    return result_utile
+        result_utile = {
+            "ratings": result.get('rating', None),
+            "price": result.get('price_level', None),
+            "website_url": result.get('website', ''),
+            "handicap": result.get('wheelchair_accessible_entrance', False),
+            "vege": result.get('serves_vegetarian_food', False),
+            "schedule": schedule,
+            "picture_profile": result["photos"][0].get('photo_reference', ''),
+            "number_of_reviews": result.get("user_ratings_total", None),
+            "reviews": result.get('reviews', [])
+        }
+        return result_utile
+    except Exception as e:
+        print_red("fetch_restaurant_details ERROR")
+        raise e
 
 def mapReviews(bddFormat, tabDataFromMaps):
+    print_blue(bddFormat)
+    print_blue(tabDataFromMaps)
     tabBddFormatedDataFromMaps = []
     for dataFromMaps in tabDataFromMaps:
         # Initialisation des champs avec des valeurs vides ou nulles
@@ -190,24 +218,31 @@ def createDataPatchDetails(resto, details):
     data["schedule"] = details["schedule"]
     data["picture_profile"] = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=" + details["picture_profile"] + f"&key={YOUR_GOOGLE_MAPS_API_KEY}"
     data["number_of_reviews"] = details["number_of_reviews"]
-    data["reviews"] = mapReviews(resto["reviews"][0].keys(), details["reviews"])
+    data["reviews"] = mapReviews(templateBDDReviews, details["reviews"])
     return data
 
 
 def update_details_for_resto(resto, details):
-    id = resto["id"]
-    url = f"https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants/{id}"  # Remplacez cette URL par la vôtre
-    headers = {
-        'Content-Type': 'application/json',
-    }
-    data = createDataPatchDetails(resto,details)
-    response = requests.patch(url, headers=headers, json=data)
-    if response.status_code == 200:
-        print_green("details updated successfully.")
-        return response.json()
-    else:
-        print_red(f"Error updating details: {response.text}")
-        raise requests.RequestException("probleme dans le patch de DETAILS " + resto["name"])
+    try:
+        id = resto["id"]
+        if dev:
+            url = f"https://x8ki-letl-twmt.n7.xano.io/api:{xanoKeyDev}/restaurants/{id}"
+        else:
+            url = f"https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants/{id}"  # Remplacez cette URL par la vôtre
+        headers = {
+            'Content-Type': 'application/json',
+        }
+        data = createDataPatchDetails(resto,details)
+        response = requests.patch(url, headers=headers, json=data)
+        if response.status_code == 200:
+            print_green("details updated successfully.")
+            return response.json()
+        else:
+            print_red(f"Error updating details: {response.text}")
+            raise requests.RequestException("probleme dans le patch de DETAILS " + resto["name"])
+    except Exception as e:
+        print_red("update_details_for_resto ERROR")
+        raise e
 
 #DUMP-PATCH PLACEID-PATCHDETAILS-DUMP
 def majDetailsRestos(all_restaurants = get_all_restaurants()):
@@ -216,8 +251,8 @@ def majDetailsRestos(all_restaurants = get_all_restaurants()):
     time.sleep(3)
     max_attempts = 3  # Nombre maximal de tentatives
     for resto in all_restaurants:
-        #LIGNE A RETIRER
-        resto["cuisine_id"] = 18
+        # #LIGNE A RETIRER
+        # resto["cuisine_id"] = 18
         attempts = 0  # Initialiser le compteur de tentatives
         while attempts < max_attempts:
             try:
@@ -246,63 +281,76 @@ def majDetailsRestos(all_restaurants = get_all_restaurants()):
     exportRestos("postMAJDETAILS")
 
 
+def convert_string_to_list(input_string):
+    print_magenta(input_string)
+    try:
+        # Essayer d'évaluer la chaîne d'entrée comme une expression Python
+        evaluated_value = ast.literal_eval(input_string)
+
+        # Si la valeur évaluée est une liste, retourner cette liste
+        if isinstance(evaluated_value, list):
+            print_bold_red(evaluated_value)
+            return evaluated_value
+        # Sinon, retourner la valeur évaluée elle-même
+        else:
+            print_cyan(evaluated_value)
+            return evaluated_value
+    except (SyntaxError, ValueError):
+        print_magenta(input_string)
+        # Si une erreur se produit lors de l'évaluation, retourner la chaîne d'entrée telle quelle
+        return input_string
+
+
+def createDataPostResto(row, restoFormat=templateBDDResto):
+    data = {}
+    print_blue(row)
+    print_red(restoFormat)
+    for key, value in restoFormat.items():
+        print_underline_green(key)
+        print(row[key])
+        data[key] = convert_string_to_list(row[key])
+    # gps_address_str = row['GPS_address']
+    # gps_address_dict = eval(gps_address_str)
+    # # Convertir le dictionnaire Python en objet JSON
+    # data["GPS_address"] = json.dumps(gps_address_dict)
+    return data
+
 def send_post(data):
-    url = 'https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants'
+    if dev:
+        url = f'https://x8ki-letl-twmt.n7.xano.io/api:{xanoKeyDev}/restaurants'
+    else:
+        url = 'https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants'
     headers = {'Content-Type': 'application/json'}
-
-    gps_address_str = data['GPS_address']
-    gps_address_dict = eval(gps_address_str)
-    # Convertir le dictionnaire Python en objet JSON
-    gps_address_json = json.dumps(gps_address_dict)
-
-    # Conversion des valeurs booléennes et numériques
-    published = True if data['published'].lower() == 'true' else False
-    handicap = True if data['handicap'].lower() == 'true' else False
-    vege = True if data['vege'].lower() == 'true' else False
-    ratings = float(data['ratings'])
-    number_of_reviews = int(data['number_of_reviews'])
-
-    # Création du payload au format JSON
-    payload = {
-        "name": data['name'],
-        "address_str": data['address_str'],
-        "published": published,
-        "GPS_address": gps_address_json,
-        "video_links": ast.literal_eval(data['video_links']),
-        "phone_number": data['phone_number'],
-        "tags_id": ast.literal_eval(data['tags_id']),
-        "placeId": data['placeId'],
-        "ratings": ratings,
-        "reviews": data['reviews'],
-        "price": data['price'],
-        "website_url": data['website_url'],
-        "handicap": handicap,
-        "vege": vege,
-        "schedule": ast.literal_eval(data['schedule']),
-        "picture_profile": data['picture_profile'],
-        "number_of_reviews": number_of_reviews
-    }
+    payload=createDataPostResto(data)
     print_blue(payload)
-    print_blue("arreter d'utiliser le payload en dur")
-    response = requests.post(url, json=payload, headers=headers)
-    print("Response:", response.text)
-    print(response.status_code)
+    print_blue(payload["tags_id"])
+    if(payload!={}):
+        response = requests.post(url, json=payload, headers=headers)
+        print("Response:", response.text)
+        print(response.status_code)
+        toReturn = response.json()
+    else:
+        # response.text="le payload ne peut pas etre vide"
+        # response.status_code="400"
+        print("todo")
+        toReturn = "reponse vide"
+    return toReturn
 
 if __name__ == "__main__":
-    majDetailsRestos()
-
-    # postrestos
-    # with open('restaurants_data2024-04-06_05postMAJDETAILS.csv', newline='', encoding='utf-8') as csvfile:
+    # # postrestos
+    # with open('perLoad.csv', newline='', encoding='utf-8') as csvfile:
     #     reader = csv.DictReader(csvfile)
     #     i=0
     #     for row in reader:
     #         print(row)
-    #         send_post(row)
+    #         # send_post(row)
+    #         print_inverse_yellow(send_post(row))
     #         i+=1
     #         if(i==6):
     #             i=0
     #             time.sleep(20)
 
+    majDetailsRestos()
 
     #exportRestos()
 
