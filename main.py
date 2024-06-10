@@ -1,6 +1,7 @@
 # faire passer chaque resto qui merde 1 par 1 pour trouver une strat ; peut etre en ayant recours à d'autres endpoint donc :'
 # mieux étudier l'api maps
 # script pour update toutes les colones schedules histoire d'avoir des intervalles plus propres
+# stocker toutes les photos sur xano et faire un script pour maj cette colone
 
 # https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants?_limit={batch_size}&_start={start_index}
 # https://x8ki-letl-twmt.n7.xano.io/api:LYxWamUX/restaurants?_limit=10&_start=0
@@ -16,8 +17,8 @@ import csv
 import json
 import datetime
 
-dev = True
-prod = False
+dev = False
+prod = True
 xanoKeyDev = '_q8oxfAF'
 xanoKey = 'LYxWamUX'
 YOUR_GOOGLE_MAPS_API_KEY = 'AIzaSyBM05T0u8LoAKr2MtbTIjXtFmrU-06ye6U'
@@ -75,9 +76,9 @@ def get_all_restaurants():
 #EXPORT
 def exportRestos(nameAppend=""):
     if dev:
-        nameAppend = " - DEV"
+        nameAppend += " - DEV"
     else:
-        nameAppend = " - PROD"
+        nameAppend += " - PROD"
     restos = get_all_restaurants()
     # Obtenir la date et l'heure actuelles
     maintenant = datetime.datetime.now()
@@ -108,6 +109,7 @@ def fetch_place_id(restaurant_name, latitude, longitude, radius=100):
     print_red(url)
     response = requests.get(url)
     data = response.json()
+    print(data)
     if data.get('results'):
         placeidsQuiMatchLeNom = len(data["results"])
         print_magenta(f"{placeidsQuiMatchLeNom} placeId retournés au lieu de 1")
@@ -260,6 +262,8 @@ def majDetailsRestos(all_restaurants = get_all_restaurants()):
                 print("resto")
                 print(resto)
                 placeIdDetails = getPlaceIdRequestDetails(resto)
+
+
                 placeId = fetch_place_id(placeIdDetails[0], placeIdDetails[1], placeIdDetails[2])
                 resto = update_place_id_for_resto(resto, placeId)
                 restoDetails = fetch_restaurant_details(placeId)
@@ -336,9 +340,114 @@ def send_post(data):
         toReturn = "reponse vide"
     return toReturn
 
+
+#   input_schedule = {
+#   "Monday": ["Closed"],
+#   "Tuesday": ["7:00 PM  - 3:00 AM"],
+#   "Wednesday": ["3:00 AM  - 11:00 PM"],
+#   "Thursday": ["11:00 AM - 2:30 AM"],
+#   "Friday": ["7:00 PM - 9:00 PM"],
+#   "Saturday": ["Closed"],
+#   "Sunday": ["7:00 PM  - 2:00 AM"]
+#     }
+#
+#     expected_output = {
+#         "Monday": ["0:00 AM - 2:00 AM"],
+#         "Tuesday": ["7:00 PM - 11:59 PM"],
+#         "Wednesday": ["0:00 AM - 11:00 PM"],
+#         "Thursday": ["11:00 AM - 11:59 PM"],
+#         "Friday": ["0:00 AM - 2:30 AM", "7:00 PM - 9:00 PM"],
+#         "Saturday": ["Closed"],
+#         "Sunday": ["7:00 PM - 2:00 AM"]
+#     }
+# ben non c'est faux... oyons les jours ainsi :
+# lundi : jour 0
+# mardi :2
+# mer : 3
+# jeu : 4
+# ven : 5
+# sam : 6
+# dim : 7
+
+# la regles pour modifier le planning est ainsi :
+# -si au jour N , le planning depasse apres minuit, on enleve ce temps du planning du jour N et on l'ajoute au planning du jour N+1
+# -lundi est le jour N+1 par rapport à dimanche.
+# - si en ajoutant les heures au planning du jour N+1, on se rends compte que la plage horaire que l'on comptait ajouter finit au moment où la place horaire qui était déjà là commence, alors on fusionne les 2 plages horaires ensemble.
+def transform_schedule(input_schedule):
+    def get_next_day(day):
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        next_index = (days.index(day) + 1) % 7
+        return days[next_index]
+
+    def format_time(time_str):
+        # Nettoyer la chaîne de caractères pour supprimer les espaces insécables
+        time_str = time_str.replace(" ", " ")
+        cleaned_time = datetime.datetime.strptime(time_str, "%I:%M %p").strftime("%I:%M %p")
+        print("Cleaned time:", cleaned_time)
+        return cleaned_time
+
+    def merge_times(times):
+        merged_times = []
+        for time_range in times:
+            if not merged_times or time_range[0] > merged_times[-1][1]:
+                merged_times.append(time_range)
+            else:
+                # Fusionner les plages horaires en mettant à jour la fin de la plage horaire précédente
+                merged_times[-1] = (merged_times[-1][0], max(merged_times[-1][1], time_range[1]))
+        return merged_times
+
+    output_schedule = {}
+
+    for day, times in input_schedule.items():
+        print("Processing day:", day)
+        if times == ["Closed"]:
+            output_schedule[day] = ["Closed"]
+            print("Day is closed.")
+            continue
+
+        formatted_times = []
+        for time_str in times:
+            start_time, end_time = time_str.split(" - ")
+            start_time = format_time(start_time)
+            end_time = format_time(end_time)
+
+            if end_time < start_time:
+                next_day = get_next_day(day)
+                print("Time range crosses midnight. Next day:", next_day)
+                # Ajouter la partie de la plage horaire pour le jour actuel
+                formatted_times.append((start_time, "11:59 PM"))
+                # Calculer le temps restant après minuit
+                remaining_time = datetime.datetime.strptime("11:59 PM", "%I:%M %p") - datetime.datetime.strptime("12:00 AM", "%I:%M %p")
+                # Ajouter le reste de la plage horaire pour le jour suivant avec l'ajustement
+                output_schedule[next_day] = output_schedule.get(next_day, []) + [("12:00 AM", (datetime.datetime.strptime(end_time, "%I:%M %p") + remaining_time).strftime("%I:%M %p"))]
+            else:
+                formatted_times.append((start_time, end_time))
+
+        print("Before sorting and merging:", formatted_times)
+
+        formatted_times.sort()
+        merged_times = merge_times(formatted_times)
+
+        print("After sorting and merging:", merged_times)
+
+        output_schedule[day] = [f"{start} - {end}" for start, end in merged_times]
+
+    return output_schedule
+
 if __name__ == "__main__":
+
+    all_restaurants = get_all_restaurants()
+    resto1 = all_restaurants[0]
+    placeIdDetails = getPlaceIdRequestDetails(resto1)
+    print(placeIdDetails)
+    placeId = fetch_place_id(placeIdDetails[0], placeIdDetails[1], placeIdDetails[2])
+    print(placeId)
+
+
+    # # exportRestos(" - AWSVideoLinks")
+    #
     # # postrestos
-    # with open('perLoad.csv', newline='', encoding='utf-8') as csvfile:
+    # with open('outputttt.csv', newline='', encoding='utf-8') as csvfile:
     #     reader = csv.DictReader(csvfile)
     #     i=0
     #     for row in reader:
@@ -350,9 +459,55 @@ if __name__ == "__main__":
     #             i=0
     #             time.sleep(20)
 
-    majDetailsRestos()
 
-    #exportRestos()
+
+
+
+
+
+    # # Test de la fonction
+    # input_schedule = {
+    #     "Monday": ["Closed"],
+    #     "Tuesday": ["7:00 PM - 3:00 AM"],
+    #     "Wednesday": ["3:00 AM - 11:00 PM"],
+    #     "Thursday": ["11:00 AM - 2:30 AM"],
+    #     "Friday": ["7:00 PM - 9:00 PM"],
+    #     "Saturday": ["Closed"],
+    #     "Sunday": ["7:00 PM - 2:00 AM"]
+    # }
+    #
+    # expected_output = {
+    #     "Monday": ["0:00 AM - 2:00 AM"],
+    #     "Tuesday": ["7:00 PM - 11:59 PM"],
+    #     "Wednesday": ["0:00 AM - 11:00 PM"],
+    #     "Thursday": ["11:00 AM - 11:59 PM"],
+    #     "Friday": ["0:00 AM - 2:30 AM", "7:00 PM - 9:00 PM"],
+    #     "Saturday": ["Closed"],
+    #     "Sunday": ["7:00 PM - 2:00 AM"]
+    # }
+    #
+    # print(transform_schedule(input_schedule) == expected_output)
+
+
+# if __name__ == "__main__":
+#     # majDetailsRestos()
+#
+#     # exportRestos(" - photos maps")
+#
+#     # postrestos
+#     with open('dumpPhotosXano.csv', newline='', encoding='utf-8') as csvfile:
+#         reader = csv.DictReader(csvfile)
+#         i=0
+#         for row in reader:
+#             print(row)
+#             # send_post(row)
+#             print_inverse_yellow(send_post(row))
+#             i+=1
+#             if(i==6):
+#                 i=0
+#                 time.sleep(20)
+#
+#     exportRestos(" - photos xano")
 
 
 
